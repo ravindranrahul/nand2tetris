@@ -39,5 +39,61 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+
+    //Set A Register     
+
+    // A Register takes input from instruction if A-Instruction
+    // else it takes input from Alu if destination is A
+    // A-Input
+    Mux16(a=instruction,b=aluOut,sel=instruction[15],out=aRegisterInput);
+    // A-load
+    Not(in=instruction[15],out=isAinstruction);
+    Or(a=isAinstruction,b=instruction[5],out=loadARegister);
+    //Set A regsiter
+    ARegister(in=aRegisterInput,load=loadARegister,out=aRegisterOut,out[0..14]=addressM);
+
+    //Set D register
+    // Condition it should be c-instruction and destination should be d register
+    And(a=instruction[15],b=instruction[4],out=loadDregister);
+    DRegister(in=aluOut,load=loadDregister,out=aluInput1);
+
+    //Set M
+    // Condition: C-instruction and destination should be M register
+    And(a=instruction[15],b=instruction[3],out=writeM);
+
+    //ALU Input 2 selector a: instruction[12]
+    Mux16(a=aRegisterOut,b=inM,sel=instruction[12],out=aluInput2);
+
+    // Compute cccccc: instruction[6..11]
+    ALU(x=aluInput1,y=aluInput2,
+        zx=instruction[11],
+        nx=instruction[10],
+        zy=instruction[9],
+        ny=instruction[8],
+        f=instruction[7],
+        no=instruction[6],
+        out=aluOut,out=outM,
+        zr=zeroResult,
+        ng=negativeResult
+    );
+
+
+    //JMP condition jjj: instuction[0..2]
+    Not(in=negativeResult,out=notNegativeResult);
+    Not(in=zeroResult,out=notZeroResult);
+    And(a=notNegativeResult,b=notZeroResult,out=positiveResult);
+
+    And(a=positiveResult,b=instruction[0],out=canJumpPositive);
+    And(a=zeroResult,b=instruction[1],out=canJumpZero);
+    And(a=negativeResult,b=instruction[2],out=canJumpNegative);
+
+
+    Or(a=canJumpPositive,b=canJumpZero,out=canJumpPositiveOrZero);
+    Or(a=canJumpPositiveOrZero,b=canJumpNegative,out=jump);
+
+    //Only load PC for c-instruction and jump 
+    And(a=instruction[15],b=jump,out=loadPC);
+
+    PC(in=aRegisterOut,load=loadPC,inc=true,reset=reset,out[0..14]=pc);
+
 }
