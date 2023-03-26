@@ -1,0 +1,18 @@
+{
+  "name": "assembler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "parser.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "n-readlines": "^1.0.1"
+  }
+}
