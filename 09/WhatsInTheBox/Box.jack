@@ -1,0 +1,48 @@
+class Box{
+  static int guess, letter,result,salt;
+
+  function void run (){
+   let salt = 3408;
+
+   let guess = Keyboard.readInt("Now, guess a number between 0 and 5: ");
+   if(guess>5){
+
+     do Output.printString("The number should be between 0 and 5. Try again!");
+     do Output.println();
+     let guess = Keyboard.readInt("Guess a number between 0 and 5: ");
+   }
+   
+   do Output.printString("Great! now enter a random letter to open the box: ");
+   let letter = Keyboard.readChar();
+   do Output.println();
+
+   do Output.printString("Opening the box...");
+   do Sys.wait(1500);
+   do Output.println();
+
+   do Output.printString("Drum rolls please!");
+   do Sys.wait(1500);
+   do Output.println();
+
+   let result = Box.modulus(letter+salt,5);
+   if(result=guess){
+     do Output.printString("Wow!!! you guessed it right. Congratulations! The number in the box was indeed ");
+     do Output.printInt(result);
+   }
+   else{
+     do Output.printString("Whoops! you were close but the number in the box was: ");
+     do Output.printInt(result);
+     do Output.println();
+     do Output.printString("Better luck next time!");
+
+   }
+   return;
+  }
+
+  function int modulus(int number, int mod){
+   var int quotient, remainder;
+   let quotient = number / mod;
+   let remainder = number - (quotient * mod);
+   return remainder;
+  }
+}

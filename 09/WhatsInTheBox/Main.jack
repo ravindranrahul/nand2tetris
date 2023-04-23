@@ -1,0 +1,11 @@
+class Main {
+  function void main(){
+     do Output.printString("The goal of this game is to guess the number inside a secret box.");
+     do Output.println();
+     do Output.printString("The rules are simple enter a number between 0 and 5 and just open the box to find out whats in the box!");
+     do Sys.wait(900);
+     do Output.println();
+     do Box.run();
+     return;
+  }
+}
