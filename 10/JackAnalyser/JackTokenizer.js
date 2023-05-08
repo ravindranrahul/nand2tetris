@@ -1,5 +1,5 @@
 const { readFileSync } = require("fs");
-const { KEYWORDS, TOKEN_TYPE, SYMBOLS, PATTERN } = require("./constants");
+const { KEYWORD, TOKEN_TYPE, SYMBOL, PATTERN } = require("./constants");
 
 module.exports = class JackTokenizer {
   tokens = [];
@@ -31,9 +31,10 @@ module.exports = class JackTokenizer {
   }
 
   tokenType() {
-    if (Object.keys(KEYWORDS).includes(this.currentToken.toUpperCase()))
+    if (Object.values(KEYWORD).includes(this.currentToken))
       return TOKEN_TYPE.KEYWORD;
-    if (SYMBOLS.includes(this.currentToken)) return TOKEN_TYPE.SYMBOL;
+    if (Object.values(SYMBOL).includes(this.currentToken))
+      return TOKEN_TYPE.SYMBOL;
     if (this.currentToken.match(new RegExp(PATTERN.INTEGER_CONSTANT)))
       return TOKEN_TYPE.INT_CONST;
     if (this.currentToken.match(new RegExp(PATTERN.STRING_CONSTANT)))
@@ -68,5 +69,13 @@ module.exports = class JackTokenizer {
     if (this.tokenType() == TOKEN_TYPE.STRING_CONST)
       token = token.replaceAll('"', "");
     return token;
+  }
+
+  peek() {
+    return this.tokens[0];
+  }
+
+  currentTokenIncludes(expectedTokens) {
+    return expectedTokens.includes(this.getToken());
   }
 };
