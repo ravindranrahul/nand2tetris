@@ -109,3 +109,10 @@ module.exports.TYPE_KEYWORDS = [
   module.exports.KEYWORD.CHAR,
   module.exports.KEYWORD.BOOLEAN,
 ];
+
+module.exports.SYMBOL_TYPE = {
+  ARGUMENT: "argument",
+  LOCAL: "local",
+  STATIC: "static",
+  FIELD: "this",
+};
