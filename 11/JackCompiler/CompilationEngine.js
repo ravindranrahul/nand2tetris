@@ -1,3 +1,6 @@
+const JackTokenizer = require("./JackTokenizer");
+const path = require("path");
+const VMWritter = require("./VMWritter");
 const {
   KEYWORD,
   TOKEN_TYPE,
@@ -9,30 +12,37 @@ const {
   CONSTANT_KEYWORDS,
   OPERANDS,
   UNARY_OPERANDS,
+  VM_MEMORY_SEGMENT,
+  SYMBOL_TYPE,
+  VM_OPERAND_MAPPING,
 } = require("./constants");
+const SymbolTable = require("./SymbolTable");
 
 module.exports = class CompilationEngine {
-  constructor(tokenizer) {
-    this.tokenizer = tokenizer;
-    this.tokenizer.advance();
+  constructor(inputFile, outputFile) {
+    this.writer = new VMWritter(outputFile);
+    this.tokenizer = new JackTokenizer(inputFile);
+    this.filename = path.parse(inputFile).name;
+
+    this.classSymbolTable = new SymbolTable();
+    this.subroutineSymbolTable = new SymbolTable();
+    this.subroutineMeta = new Map();
     this.xml = "";
+    this.className = "";
   }
 
   compileClass() {
-    this.openTag("class");
     this.compile(KEYWORD.CLASS);
-    this.compileIdentifier();
+    this.className = this.compileIdentifier();
     this.compile(SYMBOL.LEFT_CURLY_BRACKET);
     while (this.tokenizer.currentTokenIncludes(CLASS_VARIABLE_KEYWORDS))
       this.compileClassVarDec();
     while (this.tokenizer.currentTokenIncludes(SUBROUTINE_KEYWORDS))
-      this.compileSubroutineDec();
+      this.compileSubroutine();
     this.compile(SYMBOL.RIGHT_CURLY_BRACKET);
-    this.closeTag("class");
-    return this.xml;
   }
 
-  compileIdentifier = () => this.compileTokenType(TOKEN_TYPE.IDENTIFIER);
+  compileIdentifier = () => this.compile(TOKEN_TYPE.IDENTIFIER);
 
   compileType() {
     if (this.tokenizer.currentTokenIncludes(TYPE_KEYWORDS))
@@ -42,34 +52,43 @@ module.exports = class CompilationEngine {
   }
 
   compileClassVarDec() {
-    this.openTag("classVarDec");
-    this.compile(CLASS_VARIABLE_KEYWORDS);
-    this.compileType();
-    this.compileIdentifier();
+    let kind =
+      this.compile(CLASS_VARIABLE_KEYWORDS) == "static"
+        ? SYMBOL_TYPE.STATIC
+        : SYMBOL_TYPE.FIELD;
+    let dataType = this.compileType();
+    let name = this.compileIdentifier();
+    this.classSymbolTable.define(name, dataType, kind);
     while (this.tokenizer.currentTokenIncludes(SYMBOL.COMMA)) {
       this.compile(SYMBOL.COMMA);
-      this.compileIdentifier();
+      name = this.compileIdentifier();
+      this.classSymbolTable.define(name, dataType, kind);
     }
     this.compile(SYMBOL.SEMI_COLON);
-    this.closeTag("classVarDec");
   }
 
-  compileSubroutineDec() {
-    this.openTag("subroutineDec");
-    this.compile(SUBROUTINE_KEYWORDS);
-    if (this.tokenizer.currentTokenIncludes([KEYWORD.VOID]))
-      this.compile(KEYWORD.VOID);
-    else this.compileType();
-    this.compileIdentifier();
+  compileSubroutine() {
+    this.subroutineSymbolTable.reset();
+    this.subroutineMeta.clear();
+
+    let subroutineType = this.compile(SUBROUTINE_KEYWORDS);
+    let returnType = this.compile();
+    let subroutineName = this.compileIdentifier();
+
+    this.subroutineMeta.set("subroutineType", subroutineType);
+    this.subroutineMeta.set("returnType", returnType);
+    this.subroutineMeta.set(
+      "subroutineName",
+      `${this.className}.${subroutineName}`
+    );
+
     this.compile(SYMBOL.LEFT_ROUND_BRACKET);
     this.compileParameterList();
     this.compile(SYMBOL.RIGHT_ROUND_BRACKET);
     this.compileSubroutineBody();
-    this.closeTag("subroutineDec");
   }
 
   compileParameterList() {
-    this.openTag("parameterList");
     let primitive = this.tokenizer.currentTokenIncludes(TYPE_KEYWORDS);
     let className = this.tokenizer.tokenType == TOKEN_TYPE.IDENTIFIER;
     let isType = primitive || className;
@@ -82,34 +101,33 @@ module.exports = class CompilationEngine {
       this.compileType();
       this.compileIdentifier();
     }
-    this.closeTag("parameterList");
   }
 
   compileSubroutineBody() {
-    this.openTag("subroutineBody");
     this.compile(SYMBOL.LEFT_CURLY_BRACKET);
     while (this.tokenizer.currentTokenIncludes([KEYWORD.VAR]))
       this.compileVarDec();
+    let functionName = this.subroutineMeta.get("subroutineName");
+    let nVars = this.subroutineSymbolTable.varCount(SYMBOL_TYPE.LOCAL);
+    this.writer.writeFunction(functionName, nVars);
     this.compileStatements();
     this.compile(SYMBOL.RIGHT_CURLY_BRACKET);
-    this.closeTag("subroutineBody");
   }
 
   compileVarDec() {
-    this.openTag("varDec");
     this.compile(KEYWORD.VAR);
-    this.compileType();
-    this.compileIdentifier();
+    let dataType = this.compileType();
+    let name = this.compileIdentifier();
+    this.subroutineSymbolTable.define(name, dataType, SYMBOL_TYPE.LOCAL);
     while (this.tokenizer.currentTokenIncludes([SYMBOL.COMMA])) {
       this.compile(SYMBOL.COMMA);
-      this.compileIdentifier();
+      name = this.compileIdentifier();
+      this.subroutineSymbolTable.define(name, dataType, SYMBOL_TYPE.LOCAL);
     }
     this.compile(SYMBOL.SEMI_COLON);
-    this.closeTag("varDec");
   }
 
   compileStatements() {
-    this.openTag("statements");
     while (this.tokenizer.currentTokenIncludes(STATEMENT_KEYWORDS)) {
       let currentToken = this.tokenizer.getToken();
       let capitalizedTokenName =
@@ -117,7 +135,6 @@ module.exports = class CompilationEngine {
       let compilerMethodName = `compile${capitalizedTokenName}`;
       this[compilerMethodName]();
     }
-    this.closeTag("statements");
   }
 
   compileLet() {
@@ -172,50 +189,53 @@ module.exports = class CompilationEngine {
   }
 
   compileDo() {
-    this.openTag("doStatement");
     this.compile(KEYWORD.DO);
     this.compileSubroutineCall();
     this.compile(SYMBOL.SEMI_COLON);
-    this.closeTag("doStatement");
+    this.writer.writePop(VM_MEMORY_SEGMENT.TEMP, 0);
   }
 
   compileSubroutineCall() {
-    this.compileIdentifier();
+    let subroutineName = this.compileIdentifier();
     if (this.tokenizer.currentTokenIncludes(SYMBOL.DOT)) {
       this.compile(SYMBOL.DOT);
-      this.compileIdentifier();
+      subroutineName = `${subroutineName}.${this.compileIdentifier()}`;
     }
+
     this.compile(SYMBOL.LEFT_ROUND_BRACKET);
-    this.compileExpressionList();
+    let nArgs = this.compileExpressionList();
     this.compile(SYMBOL.RIGHT_ROUND_BRACKET);
+    this.writer.writeFunctionCall(subroutineName, nArgs);
   }
 
   compileReturn() {
-    this.openTag("returnStatement");
+    if (this.subroutineMeta.get("returnType") == KEYWORD.VOID) {
+      this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, 0);
+    }
     this.compile(KEYWORD.RETURN);
+    this.writer.writeReturn();
     if (!this.tokenizer.currentTokenIncludes(SYMBOL.SEMI_COLON))
       this.compileExpression();
     this.compile(SYMBOL.SEMI_COLON);
-    this.closeTag("returnStatement");
   }
 
   compileExpression() {
-    this.openTag("expression");
     this.compileTerm();
     while (this.tokenizer.currentTokenIncludes(OPERANDS)) {
-      this.compile(OPERANDS);
+      let operand = this.compile(OPERANDS);
       this.compileTerm();
+      this.writer.writeArithmetic(VM_OPERAND_MAPPING[operand]);
     }
-    this.closeTag("expression");
   }
 
   compileTerm() {
     this.openTag("term");
-    if (this.tokenizer.tokenType() == TOKEN_TYPE.INT_CONST)
-      this.compileTokenType(TOKEN_TYPE.INT_CONST);
-    else if (this.tokenizer.tokenType() == TOKEN_TYPE.STRING_CONST)
-      this.compileTokenType(TOKEN_TYPE.STRING_CONST);
-    else if (this.tokenizer.currentTokenIncludes(CONSTANT_KEYWORDS))
+    if (this.tokenizer.tokenType() == TOKEN_TYPE.INT_CONST) {
+      let constant = this.compile(TOKEN_TYPE.INT_CONST);
+      this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, constant);
+    } else if (this.tokenizer.tokenType() == TOKEN_TYPE.STRING_CONST) {
+      this.compile(TOKEN_TYPE.STRING_CONST);
+    } else if (this.tokenizer.currentTokenIncludes(CONSTANT_KEYWORDS))
       this.compile(CONSTANT_KEYWORDS);
     else if (this.tokenizer.tokenType() == TOKEN_TYPE.IDENTIFIER)
       if (this.tokenizer.peek() == SYMBOL.DOT) this.compileSubroutineCall();
@@ -230,37 +250,23 @@ module.exports = class CompilationEngine {
   }
 
   compileExpressionList() {
-    this.openTag("expressionList");
-    if (!this.tokenizer.currentTokenIncludes(SYMBOL.RIGHT_ROUND_BRACKET))
+    let nArgs = 0;
+    if (!this.tokenizer.currentTokenIncludes(SYMBOL.RIGHT_ROUND_BRACKET)) {
       this.compileExpression();
+      nArgs++;
+    }
     while (!this.tokenizer.currentTokenIncludes(SYMBOL.RIGHT_ROUND_BRACKET)) {
       this.compile(SYMBOL.COMMA);
       this.compileExpression();
+      nArgs++;
     }
-    this.closeTag("expressionList");
+    return nArgs;
   }
 
-  compile(expected, type = "token") {
+  compile(expected) {
     let currentToken = this.tokenizer.getToken();
-    let currentType = this.tokenizer.tokenType();
-    let compareString = type == "token" ? currentToken : currentType;
-    let condition =
-      typeof expected == "string"
-        ? expected == compareString
-        : expected.includes(compareString);
-
-    if (condition) {
-      this.writeTag(currentType, currentToken);
-      this.tokenizer.advance();
-    } else {
-      throw console.error(
-        `Comparison mismatch. Expecting "${expected}" found "${compareString}"`
-      );
-    }
-  }
-
-  compileTokenType(type) {
-    this.compile(type, type);
+    this.tokenizer.advance();
+    return currentToken;
   }
 
   write = (string) => (this.xml = this.xml.concat(string));

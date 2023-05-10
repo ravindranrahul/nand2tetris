@@ -16,14 +16,8 @@ if (sourcePath.endsWith(".jack")) {
   jackFiles.push(...files);
 }
 
-for (file of jackFiles) {
-  const tokenizer = new JackTokenizer(file);
-  //   writeTokenizedFile(tokenizer, file);
-  writeCompiledFile(tokenizer, file);
-}
-
-function writeCompiledFile(tokenizer, file) {
-  const compilationEngine = new CompilationEngine(tokenizer);
-  const xml = compilationEngine.compileClass();
-  fs.writeFileSync(file.replace(".jack", ".compiled.xml"), xml);
+for (inputFile of jackFiles) {
+  let outputFile = inputFile.replace(".jack", ".vm");
+  const compilationEngine = new CompilationEngine(inputFile, outputFile);
+  compilationEngine.compileClass();
 }

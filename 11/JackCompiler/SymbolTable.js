@@ -1,22 +1,23 @@
 module.exports = class SymbolTable {
   constructor() {
     this.table = new Map();
-    this.varCount = new Map();
   }
 
   reset() {
     this.table.clear();
-    this.varCount.clear();
   }
 
   define(name, dataType, kind) {
-    let index = this.varCount.get(kind) || 0;
+    let index = this.varCount(kind) + 1;
     this.table.set(name, { dataType, kind, index });
-    this.varCount.set(kind, ++index);
   }
 
   varCount(kind) {
-    return this.varCount.get(kind);
+    let count = 0;
+    this.table.forEach((row) => {
+      if (row.kind == kind) count++;
+    });
+    return count;
   }
 
   kindOf(name) {

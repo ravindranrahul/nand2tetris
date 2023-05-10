@@ -20,6 +20,8 @@ module.exports = class JackTokenizer {
       "g"
     );
     this.tokens = input.match(patternToken) || [];
+
+    this.advance();
   }
 
   hasMoreTokens() {

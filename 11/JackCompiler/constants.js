@@ -116,3 +116,28 @@ module.exports.SYMBOL_TYPE = {
   STATIC: "static",
   FIELD: "this",
 };
+
+module.exports.VM_MEMORY_SEGMENT = {
+  ARGUMENT: "argument",
+  LOCAL: "local",
+  STATIC: "static",
+  CONSTANT: "constant",
+  THIS: "this",
+  THAT: "that",
+  THAT: "that",
+  POINTER: "pointer",
+  TEMP: "temp",
+};
+
+module.exports.VM_OPERAND_MAPPING = {
+  "+": "add",
+  "-": "sub",
+  "*": "call Math.multiply 2",
+  "/": "call Math.divide 2",
+  "&": "and",
+  "|": "or",
+  "~": "not",
+  ">": "gt",
+  "<": "lt",
+  "=": "eq",
+};
