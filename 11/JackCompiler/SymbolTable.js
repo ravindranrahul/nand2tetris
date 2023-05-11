@@ -8,7 +8,7 @@ module.exports = class SymbolTable {
   }
 
   define(name, dataType, kind) {
-    let index = this.varCount(kind) + 1;
+    let index = this.varCount(kind);
     this.table.set(name, { dataType, kind, index });
   }
 
@@ -30,5 +30,9 @@ module.exports = class SymbolTable {
 
   indexOf(name) {
     return this.table.get(name)?.index;
+  }
+
+  exists(name) {
+    return this.table.has(name);
   }
 };

@@ -129,15 +129,34 @@ module.exports.VM_MEMORY_SEGMENT = {
   TEMP: "temp",
 };
 
+module.exports.VM_OPERATION = {
+  ADD: "add",
+  SUB: "sub",
+  NEG: "neg",
+  AND: "and",
+  OR: "or",
+  NOT: "not",
+  GREATER_THAN: "gt",
+  LESS_THAN: "lt",
+  EQUAL: "eq",
+};
+
 module.exports.VM_OPERAND_MAPPING = {
-  "+": "add",
-  "-": "sub",
+  "+": module.exports.VM_OPERATION.ADD,
+  "-": module.exports.VM_OPERATION.SUB,
   "*": "call Math.multiply 2",
   "/": "call Math.divide 2",
-  "&": "and",
-  "|": "or",
-  "~": "not",
-  ">": "gt",
-  "<": "lt",
-  "=": "eq",
+  "&": module.exports.VM_OPERATION.AND,
+  "|": module.exports.VM_OPERATION.OR,
+  "~": module.exports.VM_OPERATION.NOT,
+  ">": module.exports.VM_OPERATION.GREATER_THAN,
+  "<": module.exports.VM_OPERATION.LESS_THAN,
+  "=": module.exports.VM_OPERATION.EQUAL,
+};
+
+module.exports.VM_LABEL_TYPE = {
+  WHILE_START: "while_start",
+  WHILE_END: "while_end",
+  ELSE_START: "else_start",
+  IF_END: "if_end",
 };

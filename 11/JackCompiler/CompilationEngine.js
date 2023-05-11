@@ -15,6 +15,8 @@ const {
   VM_MEMORY_SEGMENT,
   SYMBOL_TYPE,
   VM_OPERAND_MAPPING,
+  VM_OPERATION,
+  VM_LABEL_TYPE,
 } = require("./constants");
 const SymbolTable = require("./SymbolTable");
 
@@ -45,10 +47,7 @@ module.exports = class CompilationEngine {
   compileIdentifier = () => this.compile(TOKEN_TYPE.IDENTIFIER);
 
   compileType() {
-    if (this.tokenizer.currentTokenIncludes(TYPE_KEYWORDS))
-      this.compile(TYPE_KEYWORDS);
-    else if (this.tokenizer.tokenType() == TOKEN_TYPE.IDENTIFIER)
-      this.compileIdentifier();
+    return this.compile(TOKEN_TYPE.IDENTIFIER);
   }
 
   compileClassVarDec() {
@@ -93,13 +92,23 @@ module.exports = class CompilationEngine {
     let className = this.tokenizer.tokenType == TOKEN_TYPE.IDENTIFIER;
     let isType = primitive || className;
     if (isType) {
-      this.compileType();
-      this.compileIdentifier();
+      let dataType = this.compileType();
+      let variableName = this.compileIdentifier();
+      this.subroutineSymbolTable.define(
+        variableName,
+        dataType,
+        SYMBOL_TYPE.ARGUMENT
+      );
     }
     while (this.tokenizer.currentToken.includes(SYMBOL.COMMA)) {
       this.compile(SYMBOL.COMMA);
-      this.compileType();
-      this.compileIdentifier();
+      let dataType = this.compileType();
+      let variableName = this.compileIdentifier();
+      this.subroutineSymbolTable.define(
+        variableName,
+        dataType,
+        SYMBOL_TYPE.ARGUMENT
+      );
     }
   }
 
@@ -138,34 +147,49 @@ module.exports = class CompilationEngine {
   }
 
   compileLet() {
-    this.openTag("letStatement");
     this.compile(KEYWORD.LET);
-    this.compileVariableOrArrayExpression();
+    let variableName = this.compileIdentifier();
     this.compile(SYMBOL.EQUAL);
     this.compileExpression();
+    let kind = this.subroutineSymbolTable.kindOf(variableName);
+    let index = this.subroutineSymbolTable.indexOf(variableName);
+    this.writer.writePop(kind, index);
     this.compile(SYMBOL.SEMI_COLON);
-    this.closeTag("letStatement");
   }
 
   compileVariableOrArrayExpression() {
-    this.compileIdentifier();
+    let variableName = this.compileIdentifier();
+    let kind = this.subroutineSymbolTable.kindOf(variableName);
+    let index = this.subroutineSymbolTable.indexOf(variableName);
+
+    this.writer.writePush(kind, index);
     if (this.tokenizer.currentTokenIncludes(SYMBOL.LEFT_SQUARE_BRACKET)) {
       this.compile(SYMBOL.LEFT_SQUARE_BRACKET);
       this.compileExpression();
       this.compile(SYMBOL.RIGHT_SQUARE_BRACKET);
     }
+    return variableName;
   }
 
   compileIf() {
-    this.openTag("ifStatement");
+    let elseStart = this.writer.getUniqueLabel(VM_LABEL_TYPE.ELSE_START);
+    let ifEndLabel = this.writer.getUniqueLabel(VM_LABEL_TYPE.IF_END);
+
     this.compile(KEYWORD.IF);
     this.compileEnclosedExpression();
+    this.writer.writeArithmetic(VM_OPERATION.NOT);
+    this.writer.writeIf(elseStart);
+
     this.compileEnclosedStatements();
+    this.writer.writeGoto(ifEndLabel);
+
+    this.writer.writeLabel(elseStart);
     if (this.tokenizer.currentTokenIncludes(KEYWORD.ELSE)) {
       this.compile(KEYWORD.ELSE);
       this.compileEnclosedStatements();
     }
-    this.closeTag("ifStatement");
+
+    this.writer.writeLabel(ifEndLabel);
   }
 
   compileEnclosedStatements() {
@@ -181,11 +205,19 @@ module.exports = class CompilationEngine {
   }
 
   compileWhile() {
-    this.openTag("whileStatement");
+    let whileStartLabel = this.writer.getUniqueLabel(VM_LABEL_TYPE.WHILE_START);
+    let whileEndLabel = this.writer.getUniqueLabel(VM_LABEL_TYPE.WHILE_END);
+
     this.compile(KEYWORD.WHILE);
+    this.writer.writeLabel(whileStartLabel);
     this.compileEnclosedExpression();
+    this.writer.writeArithmetic(VM_OPERATION.NOT);
+    this.writer.writeIf(whileEndLabel);
+
     this.compileEnclosedStatements();
-    this.closeTag("whileStatement");
+    this.writer.writeGoto(whileStartLabel);
+
+    this.writer.writeLabel(whileEndLabel);
   }
 
   compileDo() {
@@ -213,10 +245,10 @@ module.exports = class CompilationEngine {
       this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, 0);
     }
     this.compile(KEYWORD.RETURN);
-    this.writer.writeReturn();
     if (!this.tokenizer.currentTokenIncludes(SYMBOL.SEMI_COLON))
       this.compileExpression();
     this.compile(SYMBOL.SEMI_COLON);
+    this.writer.writeReturn();
   }
 
   compileExpression() {
@@ -229,24 +261,27 @@ module.exports = class CompilationEngine {
   }
 
   compileTerm() {
-    this.openTag("term");
     if (this.tokenizer.tokenType() == TOKEN_TYPE.INT_CONST) {
       let constant = this.compile(TOKEN_TYPE.INT_CONST);
       this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, constant);
     } else if (this.tokenizer.tokenType() == TOKEN_TYPE.STRING_CONST) {
       this.compile(TOKEN_TYPE.STRING_CONST);
-    } else if (this.tokenizer.currentTokenIncludes(CONSTANT_KEYWORDS))
-      this.compile(CONSTANT_KEYWORDS);
-    else if (this.tokenizer.tokenType() == TOKEN_TYPE.IDENTIFIER)
+    } else if (this.tokenizer.currentTokenIncludes(CONSTANT_KEYWORDS)) {
+      let keyword = this.compile(CONSTANT_KEYWORDS);
+      this.writer.writeConstantKeyword(keyword);
+    } else if (this.tokenizer.tokenType() == TOKEN_TYPE.IDENTIFIER)
       if (this.tokenizer.peek() == SYMBOL.DOT) this.compileSubroutineCall();
       else this.compileVariableOrArrayExpression();
     else if (this.tokenizer.currentTokenIncludes(SYMBOL.LEFT_ROUND_BRACKET)) {
       this.compileEnclosedExpression();
     } else {
-      this.compile(UNARY_OPERANDS);
+      let unaryOperand =
+        this.compile(UNARY_OPERANDS) == SYMBOL.MINUS
+          ? VM_OPERATION.NEG
+          : VM_OPERATION.NOT;
       this.compileTerm();
+      this.writer.writeArithmetic(unaryOperand);
     }
-    this.closeTag("term");
   }
 
   compileExpressionList() {
