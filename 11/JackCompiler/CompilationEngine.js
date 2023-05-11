@@ -119,6 +119,22 @@ module.exports = class CompilationEngine {
     let functionName = this.subroutineMeta.get("subroutineName");
     let nVars = this.subroutineSymbolTable.varCount(SYMBOL_TYPE.LOCAL);
     this.writer.writeFunction(functionName, nVars);
+
+    // Setup constructor
+    let subroutineType = this.subroutineMeta.get("subroutineType");
+    if (subroutineType == KEYWORD.CONSTRUCTOR) {
+      let nFields = this.classSymbolTable.varCount(SYMBOL_TYPE.FIELD);
+      this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, nFields);
+      this.writer.writeFunctionCall("Memory.alloc", 1);
+      this.writer.writePop(VM_MEMORY_SEGMENT.POINTER, 0);
+    }
+
+    // Setup method
+    if (subroutineType == KEYWORD.METHOD) {
+      this.writer.writePush(VM_MEMORY_SEGMENT.ARGUMENT, 0);
+      this.writer.writePop(VM_MEMORY_SEGMENT.POINTER, 0);
+    }
+
     this.compileStatements();
     this.compile(SYMBOL.RIGHT_CURLY_BRACKET);
   }
@@ -151,16 +167,14 @@ module.exports = class CompilationEngine {
     let variableName = this.compileIdentifier();
     this.compile(SYMBOL.EQUAL);
     this.compileExpression();
-    let kind = this.subroutineSymbolTable.kindOf(variableName);
-    let index = this.subroutineSymbolTable.indexOf(variableName);
+    let { kind, index } = this.getSubroutineVariableInfo(variableName);
     this.writer.writePop(kind, index);
     this.compile(SYMBOL.SEMI_COLON);
   }
 
   compileVariableOrArrayExpression() {
     let variableName = this.compileIdentifier();
-    let kind = this.subroutineSymbolTable.kindOf(variableName);
-    let index = this.subroutineSymbolTable.indexOf(variableName);
+    let { kind, index } = this.getSubroutineVariableInfo(variableName);
 
     this.writer.writePush(kind, index);
     if (this.tokenizer.currentTokenIncludes(SYMBOL.LEFT_SQUARE_BRACKET)) {
@@ -228,15 +242,41 @@ module.exports = class CompilationEngine {
   }
 
   compileSubroutineCall() {
+    let isMethodCall = false;
     let subroutineName = this.compileIdentifier();
+
     if (this.tokenizer.currentTokenIncludes(SYMBOL.DOT)) {
+      //Dot operator present, method call or function call
       this.compile(SYMBOL.DOT);
-      subroutineName = `${subroutineName}.${this.compileIdentifier()}`;
+      let methodName = this.compileIdentifier();
+
+      //Check if the requested object is in scope
+      let { kind, index, dataType } =
+        this.getSubroutineVariableInfo(subroutineName);
+      if (kind) {
+        // Object is in scope - Method call detected
+        isMethodCall = true;
+        // Push object pointer to stack
+        this.writer.writePush(kind, index);
+        subroutineName = `${dataType}.${methodName}`;
+      } else {
+        // Object is not in scope - Function call detected
+        // Prefix previously detected Class Name
+        subroutineName = `${subroutineName}.${methodName}`;
+      }
+    }
+    // Dot operator not present, this is an internal method call. Prefix current className
+    else {
+      isMethodCall = true;
+      this.writer.writePush(VM_MEMORY_SEGMENT.POINTER, 0);
+      subroutineName = `${this.className}.${subroutineName}`;
     }
 
     this.compile(SYMBOL.LEFT_ROUND_BRACKET);
     let nArgs = this.compileExpressionList();
     this.compile(SYMBOL.RIGHT_ROUND_BRACKET);
+
+    if (isMethodCall) nArgs++;
     this.writer.writeFunctionCall(subroutineName, nArgs);
   }
 
@@ -302,6 +342,17 @@ module.exports = class CompilationEngine {
     let currentToken = this.tokenizer.getToken();
     this.tokenizer.advance();
     return currentToken;
+  }
+
+  getSubroutineVariableInfo(variableName) {
+    let symbolTable = this.subroutineSymbolTable;
+    if (!this.subroutineSymbolTable.has(variableName)) {
+      symbolTable = this.classSymbolTable;
+    }
+    let kind = symbolTable.kindOf(variableName);
+    let index = symbolTable.indexOf(variableName);
+    let dataType = symbolTable.dataTypeof(variableName);
+    return { kind, index, dataType };
   }
 
   write = (string) => (this.xml = this.xml.concat(string));

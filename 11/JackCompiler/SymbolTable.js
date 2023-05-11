@@ -32,7 +32,7 @@ module.exports = class SymbolTable {
     return this.table.get(name)?.index;
   }
 
-  exists(name) {
+  has(name) {
     return this.table.has(name);
   }
 };
