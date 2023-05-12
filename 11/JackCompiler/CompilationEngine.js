@@ -52,7 +52,7 @@ module.exports = class CompilationEngine {
 
   compileClassVarDec() {
     let kind =
-      this.compile(CLASS_VARIABLE_KEYWORDS) == "static"
+      this.compile(CLASS_VARIABLE_KEYWORDS) == KEYWORD.STATIC
         ? SYMBOL_TYPE.STATIC
         : SYMBOL_TYPE.FIELD;
     let dataType = this.compileType();
@@ -80,6 +80,16 @@ module.exports = class CompilationEngine {
       "subroutineName",
       `${this.className}.${subroutineName}`
     );
+
+    // If current subroutine is a method, update the symbol table to add
+    // Object referenct to argument list
+    if (subroutineType == KEYWORD.METHOD) {
+      this.subroutineSymbolTable.define(
+        "this",
+        this.className,
+        SYMBOL_TYPE.ARGUMENT
+      );
+    }
 
     this.compile(SYMBOL.LEFT_ROUND_BRACKET);
     this.compileParameterList();
