@@ -164,25 +164,53 @@ module.exports = class CompilationEngine {
 
   compileLet() {
     this.compile(KEYWORD.LET);
-    let variableName = this.compileIdentifier();
+    let { variableName, isArray } =
+      this.compileVariableOrArrayExpression(false);
     this.compile(SYMBOL.EQUAL);
     this.compileExpression();
-    let { kind, index } = this.getSubroutineVariableInfo(variableName);
-    this.writer.writePop(kind, index);
+    if (isArray) {
+      this.writer.writePop(VM_MEMORY_SEGMENT.THAT, 0);
+    } else {
+      let { kind, index } = this.getSubroutineVariableInfo(variableName);
+      this.writer.writePop(kind, index);
+    }
     this.compile(SYMBOL.SEMI_COLON);
   }
 
-  compileVariableOrArrayExpression() {
+  compileVariableOrArrayExpression(pushToStack = true) {
+    let isArray = false;
+    // Read variable
     let variableName = this.compileIdentifier();
-    let { kind, index } = this.getSubroutineVariableInfo(variableName);
 
-    this.writer.writePush(kind, index);
+    // Read array, i.e set THAT pointer
     if (this.tokenizer.currentTokenIncludes(SYMBOL.LEFT_SQUARE_BRACKET)) {
+      isArray = true;
+
+      // Array object
+      let { kind, index } = this.getSubroutineVariableInfo(variableName);
+      this.writer.writePush(kind, index);
+
       this.compile(SYMBOL.LEFT_SQUARE_BRACKET);
+
+      // this will put the compiled expression on top
       this.compileExpression();
+
+      // add to get the index
+      this.writer.writeArithmetic(VM_OPERATION.ADD);
+      this.writer.writePop(VM_MEMORY_SEGMENT.POINTER, 1);
+
       this.compile(SYMBOL.RIGHT_SQUARE_BRACKET);
     }
-    return variableName;
+
+    if (pushToStack) {
+      if (isArray) {
+        this.writer.writePush(VM_MEMORY_SEGMENT.THAT, 0);
+      } else {
+        let { kind, index } = this.getSubroutineVariableInfo(variableName);
+        this.writer.writePush(kind, index);
+      }
+    }
+    return { variableName, isArray };
   }
 
   compileIf() {
@@ -305,7 +333,8 @@ module.exports = class CompilationEngine {
       let constant = this.compile(TOKEN_TYPE.INT_CONST);
       this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, constant);
     } else if (this.tokenizer.tokenType() == TOKEN_TYPE.STRING_CONST) {
-      this.compile(TOKEN_TYPE.STRING_CONST);
+      let string = this.compile(TOKEN_TYPE.STRING_CONST);
+      this.pushString(string);
     } else if (this.tokenizer.currentTokenIncludes(CONSTANT_KEYWORDS)) {
       let keyword = this.compile(CONSTANT_KEYWORDS);
       this.writer.writeConstantKeyword(keyword);
@@ -344,6 +373,15 @@ module.exports = class CompilationEngine {
     return currentToken;
   }
 
+  pushString(string) {
+    this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, string.length);
+    this.writer.writeFunctionCall("String.new", 1);
+    Array.from(string).forEach((char) => {
+      this.writer.writePush(VM_MEMORY_SEGMENT.CONSTANT, char.charCodeAt(0));
+      this.writer.writeFunctionCall("String.appendChar", 2);
+    });
+  }
+
   getSubroutineVariableInfo(variableName) {
     let symbolTable = this.subroutineSymbolTable;
     if (!this.subroutineSymbolTable.has(variableName)) {
@@ -354,16 +392,4 @@ module.exports = class CompilationEngine {
     let dataType = symbolTable.dataTypeof(variableName);
     return { kind, index, dataType };
   }
-
-  write = (string) => (this.xml = this.xml.concat(string));
-  openTag = (tag) => this.write(`<${tag}>\n`);
-  closeTag = (tag) => this.write(`</${tag}>\n`);
-  escapeCharacters = (string) => {
-    return string
-      .replaceAll("&", "&amp;")
-      .replaceAll(">", "&gt;")
-      .replaceAll("<", "&lt;");
-  };
-  writeTag = (tag, text) =>
-    this.write(`<${tag}>${this.escapeCharacters(text)}</${tag}>\n`);
 };
