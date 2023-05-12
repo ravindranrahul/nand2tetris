@@ -31,6 +31,7 @@ module.exports = class CompilationEngine {
     this.subroutineMeta = new Map();
     this.xml = "";
     this.className = "";
+    this.i = 0;
   }
 
   compileClass() {
@@ -99,7 +100,7 @@ module.exports = class CompilationEngine {
 
   compileParameterList() {
     let primitive = this.tokenizer.currentTokenIncludes(TYPE_KEYWORDS);
-    let className = this.tokenizer.tokenType == TOKEN_TYPE.IDENTIFIER;
+    let className = this.tokenizer.tokenType() == TOKEN_TYPE.IDENTIFIER;
     let isType = primitive || className;
     if (isType) {
       let dataType = this.compileType();
@@ -179,6 +180,9 @@ module.exports = class CompilationEngine {
     this.compile(SYMBOL.EQUAL);
     this.compileExpression();
     if (isArray) {
+      this.writer.writePop(VM_MEMORY_SEGMENT.TEMP, 0);
+      this.writer.writePop(VM_MEMORY_SEGMENT.POINTER, 1);
+      this.writer.writePush(VM_MEMORY_SEGMENT.TEMP, 0);
       this.writer.writePop(VM_MEMORY_SEGMENT.THAT, 0);
     } else {
       let { kind, index } = this.getSubroutineVariableInfo(variableName);
@@ -205,15 +209,15 @@ module.exports = class CompilationEngine {
       // this will put the compiled expression on top
       this.compileExpression();
 
-      // add to get the index
+      // add to get the index, leave the sum at the top
       this.writer.writeArithmetic(VM_OPERATION.ADD);
-      this.writer.writePop(VM_MEMORY_SEGMENT.POINTER, 1);
 
       this.compile(SYMBOL.RIGHT_SQUARE_BRACKET);
     }
 
     if (pushToStack) {
       if (isArray) {
+        this.writer.writePop(VM_MEMORY_SEGMENT.POINTER, 1);
         this.writer.writePush(VM_MEMORY_SEGMENT.THAT, 0);
       } else {
         let { kind, index } = this.getSubroutineVariableInfo(variableName);

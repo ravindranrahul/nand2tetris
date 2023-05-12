@@ -57,7 +57,7 @@ module.exports.PATTERN = {
   SYMBOL: "[\\{\\}\\(\\)\\[\\]\\.,;\\+\\-\\*\\/&\\|<>=~]",
   INTEGER_CONSTANT: "^[\\d\\.]+",
   STRING_CONSTANT: '".+"',
-  KEYWORD: Object.values(module.exports.KEYWORD).join("|"),
+  KEYWORD: "(" + Object.values(module.exports.KEYWORD).join("|") + ")(?=\\s)",
   IDENTIFIER: "[a-zA-Z0-9_]+",
 };
 
