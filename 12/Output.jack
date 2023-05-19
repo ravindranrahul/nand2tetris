@@ -19,8 +19,19 @@ class Output {
     // Character map for displaying characters
     static Array charMaps; 
 
+	static int row;
+	static int column;
+	static Array screen;
+	static int cursorRow;
+	static int cursorColumn;
+
     /** Initializes the screen, and locates the cursor at the screen's top-left. */
     function void init() {
+		let row = 23;
+		let column = 64;
+		let screen = 16384;
+		do Output.initMap();
+		return;
     }
 
     // Initializes the character map array
@@ -71,7 +82,7 @@ class Output {
         do Output.create(64,30,51,51,59,59,59,27,3,30,0,0);  // @
         do Output.create(63,30,51,51,24,12,12,0,12,12,0,0);  // ?
 
-        do Output.create(65,0,0,0,0,0,0,0,0,0,0,0);          // A ** TO BE FILLED **
+        do Output.create(65,31,51,51,51,63,51,51,51,51,0,0);          // A ** TO BE FILLED **
         do Output.create(66,31,51,51,51,31,51,51,51,31,0,0); // B
         do Output.create(67,28,54,35,3,3,3,35,54,28,0,0);    // C
         do Output.create(68,15,27,51,51,51,51,51,27,15,0,0); // D
@@ -176,28 +187,113 @@ class Output {
     /** Moves the cursor to the j-th column of the i-th row,
      *  and erases the character displayed there. */
     function void moveCursor(int i, int j) {
+		let cursorRow = i;
+		let cursorColumn = j;
+		return;
     }
 
     /** Displays the given character at the cursor location,
      *  and advances the cursor one column forward. */
     function void printChar(char c) {
+		var int address,mask,i,row,isOddColumn;
+		var Array charMap;
+
+		let address = (cursorRow*352) + (cursorColumn/2);
+		let isOddColumn = cursorColumn & 1;
+
+		if(isOddColumn=1){
+			// This mask will used to clear reset left half of the register.
+			// 0000000000111111111
+			let mask = 255;
+		}else{
+			// This mask will used to clear reset right half of the register.
+			// 1111111110000000000
+        	let mask = ~255;
+		}
+		let charMap = Output.getMap(c);
+
+
+		while(i<11){
+			let row = charMap[i];
+			// If column is odd then move the shift the bits of the row 
+			// to the left-half by 8 bitwise left operation (2^8=256)
+			if(isOddColumn=1){
+				let row  = row*256;
+			}
+			// Set the screen by first reseting correct half and setting the value of the row
+			let screen[address+(32*i)] = screen[address+(32*i)] & mask | row;
+
+			let i = i+1;
+		}
+
+		do Output.advance();
+		return;
+
     }
 
     /** displays the given string starting at the cursor location,
      *  and advances the cursor appropriately. */
     function void printString(String s) {
+		var int i;
+		let i =0;
+		while(i<s.length()){
+			do Output.printChar(s.charAt(i));
+			let i = i+1;
+		}
+		return;
     }
 
     /** Displays the given integer starting at the cursor location,
      *  and advances the cursor appropriately. */
     function void printInt(int i) {
+		var String s;
+		let s = String.new(50);
+		do s.setInt(i);
+		do Output.printString(s);
+		do s.dispose();
+		return;
     }
 
     /** Advances the cursor to the beginning of the next line. */
     function void println() {
+		let cursorColumn = 0;
+
+		if(cursorRow=22){
+		 	// At the last row, start from the top again
+			let cursorRow=0;
+		}else{
+		 	 // Else move the the next row
+		  	let cursorRow = cursorRow+1;
+		}
+		return;
     }
 
     /** Moves the cursor one column back. */
     function void backSpace() {
+
+		if(cursorColumn=0 & cursorRow=0){
+			return;
+		}
+
+		if(cursorColumn>0){
+			let cursorColumn = cursorColumn-1;
+		}else{
+			let cursorRow = cursorRow-1;
+			let cursorColumn = 63;
+		}
+		
+		return;
+    }
+
+	/** Moves the cursor one column forward. */
+    function void advance() {
+
+		if(cursorColumn=63){
+			do Output.println();
+		}else{
+			// Continue on the next column of same row
+			let cursorColumn = cursorColumn+1;
+		}
+		return;
     }
 }

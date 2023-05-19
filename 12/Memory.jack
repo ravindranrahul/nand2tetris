@@ -9,26 +9,84 @@
  * consists of 32,768 words, each holding a 16-bit binary number.
  */ 
 class Memory {
+	static Array ram;
+	static Array freeList;
 
     /** Initializes the class. */
     function void init() {
+		let ram=0;
+		let freeList = 2048;
+		let freeList[0] = 0;
+		let freeList[1] = 14335;
+		return;
     }
 
     /** Returns the RAM value at the given address. */
     function int peek(int address) {
+		return ram[address];
     }
 
     /** Sets the RAM value at the given address to the given value. */
     function void poke(int address, int value) {
+		let ram[address]=value;
+		return;
     }
 
     /** Finds an available RAM block of the given size and returns
      *  a reference to its base address. */
     function int alloc(int size) {
+		
+		var int blockBaseAddress,blockSize,i,freeListNextPointer,freeListSize;
+		let blockSize = size+2;
+		let i =0;
+
+		while(i<14335){
+			// freelist.size > blocksize
+			if(freeList[i+1]>blockSize){
+				let freeListNextPointer = freeList[i];
+				let freeListSize = freeList[i+1];
+				
+				// Carve a block update; the size of the freelist
+				let freeListSize = freeListSize - blockSize;
+
+				// BlockAddress starts after leaving 2 slots for header.
+				let blockBaseAddress = freeList;	
+				// Reset next pointer
+				do Memory.poke(blockBaseAddress+1,0);
+				// Update block size
+				do Memory.poke(blockBaseAddress+1,size);
+
+				// Update the base of the freelist.
+				let freeList = freeList+blockSize;
+				let freeList[i] = freeListNextPointer;
+				let freeList[i+1] = freeListSize;
+
+				//Return usable memory base address
+				return blockBaseAddress+2;
+			}
+
+			//Reached end of list without a match;
+			if(freeList[i]=0){
+			   return -1;
+			}
+			let i=i+2;
+		}
+		return -1;
     }
 
     /** De-allocates the given object (cast as an array) by making
      *  it available for future allocations. */
     function void deAlloc(Array o) {
-    }    
+		var int i;
+		while(i<14335){
+			//Reached end of the list
+			if(freeList[i]=0){
+				let freeList[i]=o[-2];
+				let o[-2] = 0;
+			}
+			let i=i+2;
+		}
+		return;
+    }
+
 }

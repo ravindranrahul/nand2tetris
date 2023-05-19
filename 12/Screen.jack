@@ -10,34 +10,138 @@
  * the screen is indexed (0,0).
  */
 class Screen {
+	static boolean currentColor;
+	static int screenBaseAddres;
+	static Array twoToThe;
 
     /** Initializes the Screen. */
     function void init() {
+		var int i,n;
+	
+		let screenBaseAddres = 16384;
+		let twoToThe = Array.new(16);
+		let currentColor = true;
+
+		let i=0;
+		let n=1;
+		while(i<16){
+			let twoToThe[i]=n;
+			let n = n+n;
+			let i=i+1;
+		}
+		return;
     }
 
     /** Erases the entire screen. */
     function void clearScreen() {
+		var int i;
+		let i =0;
+		while (i < 8192) {
+            let screenBaseAddres[i] = 0;
+            let i = i + 1;
+        }
+		return;
     }
 
     /** Sets the current color, to be used for all subsequent drawXXX commands.
      *  Black is represented by true, white by false. */
     function void setColor(boolean b) {
+		let currentColor = b;
+		return;
     }
 
     /** Draws the (x,y) pixel, using the current color. */
     function void drawPixel(int x, int y) {
+		var int address;
+		let address = (y * 32) + (x / 16);
+
+		// Important note x%16 is same as x&15
+		if(currentColor){
+			let screenBaseAddres[address] = screenBaseAddres[address] | twoToThe[x&15];
+		} else{
+			let screenBaseAddres[address] = screenBaseAddres[address] & (~twoToThe[x&15]);
+		}
+		return;
     }
 
     /** Draws a line from pixel (x1,y1) to pixel (x2,y2), using the current color. */
     function void drawLine(int x1, int y1, int x2, int y2) {
+		 /**
+		  * Algorithm: Draw the first point. The goal is now to move towards the second point.
+		  * Following moves are available: rise(go up), fall(go down), run forward(right), run backward (left)
+		  * We compare the target position and incrementally move towards it.
+		 */
+
+		var int riseTarget,runTarget,rise,run;
+		let rise = 0;
+		let run =0;
+
+		let riseTarget = y2-y1;
+		let runTarget = x2-x1;
+
+		// Draw the first pixel
+		do Screen.drawPixel(x1 ,y1);
+
+		// While there is a potential to rise or run further, until the second point is reached
+		while(~(rise=riseTarget) | ~(run=runTarget)){
+			
+			// Check if there is potential to rise 
+			if(~(rise=riseTarget)){
+				// decide to rise or fall
+				if(riseTarget<0){
+					let rise= rise-1;
+				}else{
+					let rise=rise+1;
+				}
+			}
+
+			// Check if there is potential to run	
+			if(~(run=runTarget)){
+				// decide run forward or backward
+				if(runTarget<0){
+					let run = run-1;
+				}else{
+					let run = run+1;
+				}
+			}
+
+		   // Draw the new point
+		   do Screen.drawPixel(x1+run ,y1+rise);
+		}
+		
+		return;
     }
 
     /** Draws a filled rectangle whose top left corner is (x1, y1)
      * and bottom right corner is (x2,y2), using the current color. */
     function void drawRectangle(int x1, int y1, int x2, int y2) {
+		/**
+		 * Since the rows are smaller than columns for the Jack Screen, this algoritim draws
+		 * lines row wise along the height of the rectange
+		 */
+		var int step,height;
+		let height = y2-y1;
+	
+		let step=0;
+		while(step<(height+1)){
+			do Screen.drawLine(x1,y1+step,x2,y1+step);
+			let step=step+1;
+		}
+		return;	
     }
 
     /** Draws a filled circle of radius r<=181 around (x,y), using the current color. */
-    function void drawCircle(int x, int y, int r) {
+    function void drawCircle(int cx, int cy, int r) {
+		var int dx, dy;
+        var int rSquared;
+        
+        let dy = -r;
+        let rSquared = r*r;
+        while( ~(dy > r) ) {
+            let dx = Math.sqrt(rSquared-(dy*dy));
+            do Screen.drawLine( cx-dx,cy+dy, cx+dx, cy+dy );
+            let dy = dy + 1;
+        }
+        return;
     }
 }

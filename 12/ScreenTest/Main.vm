@@ -1,0 +1,9 @@
+function Main.main 0
+push constant 345
+push constant 35
+push constant 410
+push constant 90
+call Screen.drawLine 4
+pop temp 0
+push constant 0
+return
